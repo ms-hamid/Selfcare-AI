@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SelfCare AI Skincare &amp; Fitness Science</title>
+    <meta
+      name="description"
+      content="SelfCare AI adalah chatbot berbasis sains yang memberikan panduan biokimia kulit dan nutrisi olahraga tanpa menyebut merek komersial."
+    />
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Icons (Lucide via CDN) -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- SweetAlert2 CDN -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <!-- Custom Design System (visual theming not layout) -->
+    <link rel="stylesheet" href="style.css" />
+  </head>
+
+  <body>
+
+    <!-- ===================== BACKGROUND ORBS ===================== -->
+    <div class="bg-orbs" aria-hidden="true">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <div class="orb orb-3"></div>
+    </div>
+
+    <!-- ===================== APP WRAPPER ========================= -->
+    <!--
+      Layout strategy (Tailwind):
+      - flex h-screen overflow-hidden  →  full-viewport horizontal strip
+      - Sidebar:  fixed on mobile (off-canvas), static md:relative on desktop
+      - Main:     flex-1 takes remaining width
+    -->
+    <div class="app-wrapper flex h-screen overflow-hidden relative z-10">
+
+      <!-- ===================================================== -->
+      <!-- BACKDROP mobile only, shown when sidebar is open     -->
+      <!-- ===================================================== -->
+      <div
+        id="sidebar-backdrop"
+        class="fixed inset-0 bg-black/50 backdrop-blur-sm z-40
+               hidden md:hidden transition-opacity duration-300"
+        aria-hidden="true"
+      ></div>
+
+      <!-- ===================================================== -->
+      <!-- SIDEBAR                                               -->
+      <!-- Mobile:  fixed inset-y-0 left-0, starts off-screen   -->
+      <!-- Desktop: relative, always visible (md:translate-x-0) -->
+      <!-- ===================================================== -->
+      <aside
+        id="sidebar"
+        class="sidebar
+               fixed inset-y-0 left-0 z-50
+               -translate-x-full
+               md:static md:translate-x-0 md:z-auto
+               flex flex-col
+               transition-transform duration-300 ease-in-out
+               w-64 flex-shrink-0"
+        aria-label="Sidebar navigasi"
+        aria-hidden="true"
+      >
+        <!-- ── Brand + Close Button Row ── -->
+        <div class="sidebar-brand flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="brand-icon">
+              <i data-lucide="flask-conical"></i>
+            </div>
+            <div class="brand-text">
+              <span class="brand-name">SelfCare AI</span>
+              <span class="brand-tagline">by Science, not Brand</span>
+            </div>
+          </div>
+
+          <!-- Close button mobile only -->
+          <button
+            id="sidebar-close-btn"
+            class="md:hidden sidebar-close-btn"
+            title="Tutup menu"
+            aria-label="Tutup sidebar"
+          >
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+
+        <!-- ── Navigation ── -->
+        <nav class="sidebar-nav flex-1 overflow-y-auto">
+          <h3 class="nav-label">Topik Populer</h3>
+          <ul class="topic-list">
+            <li>
+              <button class="topic-btn" id="topic-skincare" onclick="injectTopic(this)">
+                <i data-lucide="sparkles"></i>
+                <span>Rutinitas Skincare</span>
+              </button>
+            </li>
+            <li>
+              <button class="topic-btn" id="topic-acne" onclick="injectTopic(this)">
+                <i data-lucide="zap"></i>
+                <span>Jerawat &amp; Hiperpigmentasi</span>
+              </button>
+            </li>
+            <li>
+              <button class="topic-btn" id="topic-protein" onclick="injectTopic(this)">
+                <i data-lucide="dumbbell"></i>
+                <span>Protein &amp; Pemulihan Otot</span>
+              </button>
+            </li>
+            <li>
+              <button class="topic-btn" id="topic-fat" onclick="injectTopic(this)">
+                <i data-lucide="flame"></i>
+                <span>Fat Loss &amp; Metabolisme</span>
+              </button>
+            </li>
+            <li>
+              <button class="topic-btn" id="topic-antiaging" onclick="injectTopic(this)">
+                <i data-lucide="clock"></i>
+                <span>Anti-aging &amp; Retinoid</span>
+              </button>
+            </li>
+          </ul>
+        </nav>
+
+        <!-- ── Sidebar Footer ── -->
+        <div class="sidebar-footer">
+          <button class="clear-btn" id="clear-chat-btn" title="Reset sesi percakapan">
+            <i data-lucide="trash-2"></i>
+            <span>Reset Sesi</span>
+          </button>
+          <p class="disclaimer">
+            * Tidak ada data yang disimpan di luar sesi ini.
+          </p>
+        </div>
+      </aside>
+
+      <!-- ===================================================== -->
+      <!-- MAIN CHAT AREA                                        -->
+      <!-- flex-1 → fills remaining horizontal space            -->
+      <!-- min-w-0 → prevents overflow in flex context          -->
+      <!-- ===================================================== -->
+      <main class="chat-container flex-1 min-w-0 flex flex-col h-full">
+
+        <!-- Chat Header -->
+        <header class="chat-header flex-shrink-0">
+          <div class="header-left">
+
+            <!--
+              HAMBURGER MENU mobile/tablet only (md:hidden).
+              Opens the off-canvas sidebar drawer.
+              On desktop the sidebar is always permanently visible,
+              so this button is intentionally hidden at md+ breakpoints.
+            -->
+            <button
+              id="sidebar-toggle"
+              class="sidebar-toggle md:hidden"
+              title="Buka menu"
+              aria-label="Buka sidebar"
+              aria-expanded="false"
+              aria-controls="sidebar"
+            >
+              <i data-lucide="menu"></i>
+            </button>
+
+            <!--
+              DESKTOP COLLAPSE desktop only (hidden md:flex).
+              Users on large screens can collapse the sidebar for more space.
+            -->
+            <button
+              id="sidebar-collapse-btn"
+              class="sidebar-toggle hidden md:grid"
+              title="Collapse sidebar"
+              aria-label="Toggle sidebar (desktop)"
+            >
+              <i data-lucide="panel-left"></i>
+            </button>
+
+            <div class="header-info">
+              <h1 class="header-title">SelfCare AI</h1>
+              <span class="status-indicator">
+                <span class="status-dot"></span>
+                Online Gemini 2.5 Flash
+              </span>
+            </div>
+          </div>
+
+          <div class="header-right flex items-center gap-2">
+            <!-- Mobile Reset Button -->
+            <button
+              class="mobile-reset-btn"
+              id="mobile-reset-btn"
+              title="Reset sesi percakapan"
+              aria-label="Reset sesi percakapan"
+            >
+              <i data-lucide="trash-2"></i>
+            </button>
+
+            <span class="model-badge">
+              <i data-lucide="cpu"></i>
+              gemini-2.5-flash
+            </span>
+          </div>
+        </header>
+
+        <!-- Messages Window (flex-1 = fills height, overflow-y-auto = scrollable) -->
+        <div
+          class="messages-window flex-1 overflow-y-auto"
+          id="messages-window"
+          role="log"
+          aria-live="polite"
+          aria-label="Chat messages"
+        >
+          <!-- Welcome Screen -->
+          <div class="welcome-screen" id="welcome-screen">
+            <div class="welcome-icon">
+              <i data-lucide="flask-conical"></i>
+            </div>
+            <h2 class="welcome-title">Selamat Datang di SelfCare AI</h2>
+            <p class="welcome-subtitle">
+              Tanyakan apa saja seputar biokimia kulit atau nutrisi olahraga.<br />
+              Saya akan menjawab berdasarkan sains tanpa promosi merek.
+            </p>
+            <div class="welcome-chips">
+              <button class="chip" onclick="injectPrompt('Apa bedanya AHA dan BHA untuk kulit berjerawat?')">
+                AHA vs BHA untuk jerawat
+              </button>
+              <button class="chip" onclick="injectPrompt('Berapa kebutuhan protein harian untuk hipertrofi otot?')">
+                Protein untuk hipertrofi
+              </button>
+              <button class="chip" onclick="injectPrompt('Jelaskan mekanisme kerja Niacinamide pada kulit.')">
+                Mekanisme Niacinamide
+              </button>
+              <button class="chip" onclick="injectPrompt('Bagaimana cara kerja fat burner dari sisi metabolisme?')">
+                Fat burner &amp; metabolisme
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Input Area (flex-shrink-0 = pinned to bottom) -->
+        <div class="input-area flex-shrink-0">
+          <div class="input-wrapper">
+            <textarea
+              id="user-input"
+              class="user-input"
+              placeholder="Tanyakan sesuatu tentang skincare atau nutrisi fitness..."
+              rows="1"
+              maxlength="2000"
+              aria-label="Pesan kepada SelfCare AI"
+            ></textarea>
+            <button class="send-btn" id="send-btn" title="Kirim pesan" aria-label="Kirim pesan" disabled>
+              <span id="send-btn-icon">
+                <i data-lucide="send"></i>
+              </span>
+              <span id="send-btn-spinner" class="spinner-ring" style="display:none;" aria-hidden="true"></span>
+            </button>
+          </div>
+          <p class="input-disclaimer">
+            SelfCare AI dapat membuat kesalahan. Verifikasi informasi penting bersama profesional kesehatan.
+          </p>
+        </div>
+
+      </main>
+    </div><!-- /.app-wrapper -->
+
+    <!-- ===================== SCRIPTS ======================== -->
+    <script>
+      lucide.createIcons();
+    </script>
+    <script src="app.js"></script>
+  </body>
+</html>

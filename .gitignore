@@ -1,0 +1,23 @@
+
+#  Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+#  Environment & Secrets
+#  CRITICAL: Never expose your API key!
+.env
+.env.local
+.env.*.local
+
+#  OS & Editor artifacts
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+#  Logs & Cache
+logs/
+*.log
+.npm
