@@ -6,6 +6,8 @@ require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 const path = require("path");
 const { GoogleGenAI } = require("@google/genai");
 
@@ -14,11 +16,35 @@ const { GoogleGenAI } = require("@google/genai");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-//  Middleware
+//  Security Headers (helmet)
+//  Sets X-Content-Type-Options, X-Frame-Options, HSTS, etc.
+app.use(helmet());
 
-app.use(cors()); // Allow cross-origin requests from the frontend
-app.use(express.json()); // Parse incoming JSON request bodies
-app.use(express.static(path.join(__dirname, "public"))); // Serve frontend files
+//  CORS — only allow explicitly trusted origins
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
+  : [`http://localhost:${PORT}`];
+
+app.use(
+  cors({
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+  }),
+);
+
+//  Rate Limiting — max 20 requests per IP per minute on /api/
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 20,             // max requests per window per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests. Please wait a moment before trying again." },
+});
+app.use("/api/", apiLimiter);
+
+//  Body Parser & Static Files
+app.use(express.json());
+app.use(express.static(path.join(__dirname, "public")));
 
 //  Gemini AI Client Setup
 
@@ -26,7 +52,7 @@ if (!process.env.GEMINI_API_KEY) {
   console.error(
     "FATAL ERROR: GEMINI_API_KEY is not defined in your .env file.",
   );
-  process.exit(1); // Exit immediately if the key is missing
+  process.exit(1);
 }
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -50,6 +76,9 @@ Peringatkan pengguna mengenai interaksi bahan kimia yang berbahaya (contoh: jang
 
 Sesuaikan bahasa balasan dengan bahasa dominan yang digunakan pengguna.`;
 
+//  History limit — prevents hitting Gemini token limits on long sessions
+const MAX_HISTORY_TURNS = 20; // 10 user + 10 model messages
+
 //  POST /api/chat
 //  Receives: { prompt: string, history: Array }
 //  Returns:  { response: string }
@@ -69,12 +98,16 @@ app.post("/api/chat", async (req, res) => {
     //  Format the conversation history for the Gemini SDK.
     //  The SDK expects an array of { role, parts: [{ text }] }.
     //  Frontend sends: [{ role: "user"|"model", text: "..." }]
+    //  Cap to the last MAX_HISTORY_TURNS entries to avoid token
+    //  limit errors on very long sessions.
     // ----------------------------------------------------------
     const formattedHistory = Array.isArray(history)
-      ? history.map((msg) => ({
-          role: msg.role, // "user" or "model"
-          parts: [{ text: msg.text }],
-        }))
+      ? history
+          .slice(-MAX_HISTORY_TURNS)
+          .map((msg) => ({
+            role: msg.role, // "user" or "model"
+            parts: [{ text: msg.text }],
+          }))
       : [];
 
     // ----------------------------------------------------------
@@ -86,7 +119,7 @@ app.post("/api/chat", async (req, res) => {
       model: "gemini-2.5-flash",
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
-        temperature: 0.4, // Low = factual, science-accurate
+        temperature: 0.4,
         topP: 0.8,
         topK: 40,
       },
@@ -99,15 +132,14 @@ app.post("/api/chat", async (req, res) => {
     const result = await chat.sendMessage({ message: prompt.trim() });
     const responseText = result.text;
 
-    // Return the AI's text response to the frontend
     res.json({ response: responseText });
   } catch (error) {
-    console.error("[SelfCare AI] Gemini API Error:", error.message || error);
+    // Log full error server-side for debugging
+    console.error("[SelfCare AI] Gemini API Error:", error);
 
-    // Return a structured error so the frontend can handle it gracefully
+    // Return only a generic message — never expose SDK internals to client
     res.status(500).json({
-      error: "An error occurred while communicating with the AI.",
-      details: error.message || "Unknown error",
+      error: "AI service is temporarily unavailable. Please try again.",
     });
   }
 });
@@ -120,7 +152,26 @@ app.get("*", (req, res) => {
 
 //  Start the Server
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`\n✅ SelfCare AI server is running at http://localhost:${PORT}`);
   console.log(`   Press Ctrl+C to stop.\n`);
+});
+
+//  Graceful Shutdown — ensures in-flight requests finish cleanly
+//  before the process exits (important for Railway, Heroku, etc.)
+
+process.on("SIGTERM", () => {
+  console.log("SIGTERM received. Shutting down gracefully...");
+  server.close(() => {
+    console.log("Server closed.");
+    process.exit(0);
+  });
+});
+
+process.on("SIGINT", () => {
+  console.log("\nSIGINT received. Shutting down gracefully...");
+  server.close(() => {
+    console.log("Server closed.");
+    process.exit(0);
+  });
 });
