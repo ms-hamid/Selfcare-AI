@@ -6,7 +6,7 @@
 "use strict";
 
 // ── API Configuration ──────────────────────────────────────
-const API_URL = "http://localhost:3000/api/chat";
+const API_URL = "/api/chat"; // relative — works locally AND in production
 
 // ── In-Memory Chat History ─────────────────────────────────
 // CRITICAL: This is the ONLY place history is stored.
@@ -125,9 +125,8 @@ function getTimestamp() {
 //  UI Helper: Append a Message Bubble to the Window
 
 function appendMessage(role, text) {
-  // Hide welcome screen on first message
-  const ws = document.getElementById("welcome-screen");
-  if (ws) ws.style.display = "none";
+  // Hide welcome screen on first message — use the cached top-level ref
+  if (welcomeScreen) welcomeScreen.style.display = "none";
 
   const isUser = role === "user";
   const row = document.createElement("div");
@@ -307,33 +306,18 @@ function autoResizeTextarea() {
 
 //  UI Helper: Reset entire session (after confirmation)
 
+// Store the original welcome screen HTML once at startup so resetSession()
+// can restore it without duplicating the markup in two places.
+const WELCOME_HTML = welcomeScreen ? welcomeScreen.outerHTML : "";
+
 function resetSession() {
   // Clear in-memory state
   chatHistory = [];
 
-  // Re-render UI
-  messagesWindow.innerHTML = "";
-  const welcome = document.createElement("div");
-  welcome.className = "welcome-screen";
-  welcome.id = "welcome-screen";
-  welcome.innerHTML = `
-    <div class="welcome-icon">
-      <i data-lucide="flask-conical"></i>
-    </div>
-    <h2 class="welcome-title">Selamat Datang di SelfCare AI</h2>
-    <p class="welcome-subtitle">
-      Tanyakan apa saja seputar biokimia kulit atau nutrisi olahraga.<br />
-      Saya akan menjawab berdasarkan sains tanpa promosi merek.
-    </p>
-    <div class="welcome-chips">
-      <button class="chip" onclick="injectPrompt('Apa bedanya AHA dan BHA untuk kulit berjerawat?')">AHA vs BHA untuk jerawat</button>
-      <button class="chip" onclick="injectPrompt('Berapa kebutuhan protein harian untuk hipertrofi otot?')">Protein untuk hipertrofi</button>
-      <button class="chip" onclick="injectPrompt('Jelaskan mekanisme kerja Niacinamide pada kulit.')">Mekanisme Niacinamide</button>
-      <button class="chip" onclick="injectPrompt('Bagaimana cara kerja fat burner dari sisi metabolisme?')">Fat burner &amp; metabolisme</button>
-    </div>`;
-  messagesWindow.appendChild(welcome);
+  // Restore welcome screen from the original markup — no duplication
+  messagesWindow.innerHTML = WELCOME_HTML;
 
-  // Re-init Lucide icons for the newly injected SVGs
+  // Re-init Lucide icons for the restored SVGs
   if (window.lucide) lucide.createIcons();
 }
 
@@ -562,16 +546,21 @@ document.querySelectorAll(".topic-btn").forEach((btn) => {
   });
 });
 
-// On resize: clean up mobile state when crossing to desktop
+// On resize: clean up mobile state when crossing to desktop.
+// Debounced to avoid running DOM operations on every pixel change.
+let _resizeTimer;
 window.addEventListener("resize", () => {
-  if (!isMobile()) {
-    // Ensure backdrop and scroll-lock are cleared if user resizes to desktop
-    sidebarBackdrop.classList.add("hidden");
-    sidebarBackdrop.classList.remove("opacity-100");
-    document.body.style.overflow = "";
-    sidebar.setAttribute("aria-hidden", "false");
-    sidebarToggle.setAttribute("aria-expanded", "false");
-  }
+  clearTimeout(_resizeTimer);
+  _resizeTimer = setTimeout(() => {
+    if (!isMobile()) {
+      // Ensure backdrop and scroll-lock are cleared if user resizes to desktop
+      sidebarBackdrop.classList.add("hidden");
+      sidebarBackdrop.classList.remove("opacity-100");
+      document.body.style.overflow = "";
+      sidebar.setAttribute("aria-hidden", "false");
+      sidebarToggle.setAttribute("aria-expanded", "false");
+    }
+  }, 100);
 });
 
 // ── Initialization: set correct initial aria state ─────────
