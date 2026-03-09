@@ -18,7 +18,32 @@ const PORT = process.env.PORT || 3000;
 
 //  Security Headers (helmet)
 //  Sets X-Content-Type-Options, X-Frame-Options, HSTS, etc.
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: [
+          "'self'",
+          "'unsafe-inline'", // Needed for lucide.createIcons() script
+          "https://cdn.tailwindcss.com",
+          "https://unpkg.com",
+          "https://cdn.jsdelivr.net",
+        ],
+        scriptSrcAttr: ["'unsafe-inline'"], // Allow inline event handlers (onclick)
+        styleSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          "https://fonts.googleapis.com",
+          "https://cdn.jsdelivr.net",
+        ],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:"],
+        connectSrc: ["'self'", "https://generativelanguage.googleapis.com"],
+      },
+    },
+  })
+);
 
 //  CORS — only allow explicitly trusted origins
 const allowedOrigins = process.env.ALLOWED_ORIGINS

@@ -382,26 +382,40 @@ async function confirmAndReset() {
   }
 }
 
-//  Public: Inject a topic starter prompt (from sidebar buttons)
+//  Event Listeners for Topic Buttons (Sidebar)
 
-window.injectTopic = function (btn) {
-  const topic = TOPIC_PROMPTS[btn.id];
-  if (topic) {
-    userInput.value = topic;
-    autoResizeTextarea();
-    updateSendBtn();
-    userInput.focus();
+document.querySelectorAll(".topic-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const topic = TOPIC_PROMPTS[btn.id];
+    if (topic) {
+      userInput.value = topic;
+      autoResizeTextarea();
+      updateSendBtn();
+      userInput.focus();
+
+      // Close mobile sidebar if open
+      if (isMobile() && !sidebar.classList.contains("-translate-x-full")) {
+        closeSidebar();
+      }
+    }
+  });
+});
+
+//  Event Listeners for Welcome Chips (Main Window)
+//  Using event delegation since the welcome screen is dynamically restored on chat reset
+
+messagesWindow.addEventListener("click", (e) => {
+  const chip = e.target.closest(".chip");
+  if (chip) {
+    const prompt = chip.getAttribute("data-prompt");
+    if (prompt) {
+      userInput.value = prompt;
+      autoResizeTextarea();
+      updateSendBtn();
+      userInput.focus();
+    }
   }
-};
-
-//  Public: Inject a quick-start prompt (from welcome chips)
-
-window.injectPrompt = function (text) {
-  userInput.value = text;
-  autoResizeTextarea();
-  updateSendBtn();
-  userInput.focus();
-};
+});
 
 //  UI Helper: Sync send button enabled state
 
